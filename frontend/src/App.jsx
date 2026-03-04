@@ -104,7 +104,8 @@ function App() {
     setIsLoading(true);
 
     try {
-      const response = await axios.post("http://localhost:8000/chat", {
+      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const response = await axios.post(`${apiUrl}/chat`, {
         question: input,
       });
 
