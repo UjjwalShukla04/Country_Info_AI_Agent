@@ -1,89 +1,109 @@
 # Country Information AI Agent - Workflow
 
-This document explains the flow of the AI agent, from user input to final response, along with examples.
+This document explains the end-to-end flow of the AI agent, from user input (voice or text) to final response (audio and text), including specific examples for different intent types.
 
 ## High-Level Workflow
 
-The agent uses **LangGraph** to orchestrate a stateful workflow consisting of three main nodes:
+The agent uses a **React Frontend** for interaction and a **FastAPI Backend** with **LangGraph** to orchestrate a stateful workflow.
 
-1.  **User Input**: The process starts when the user asks a question about one or more countries.
-2.  **Intent Identification (LLM)**: An LLM analyzes the question to extract:
-    -   `country_names`: A list of countries mentioned (e.g., `["China", "USA"]`).
-    -   `requested_fields`: Specific information requested (e.g., `["population", "currency"]`).
-3.  **Tool Invocation (REST API)**: The agent iterates through the identified country names and calls the **REST Countries API** (`https://restcountries.com/v3.1/name/{name}`) for each one.
-    -   It uses **exact match logic** to ensure accurate results (e.g., distinguishing "China" from "Hong Kong").
-4.  **Answer Synthesis (LLM)**: The LLM receives the user's original question, the raw data fetched from the API, and the requested fields. It generates a natural language response.
-5.  **Final Output**: The synthesized answer is displayed to the user.
+1.  **User Input**: The user speaks or types a question (e.g., "Compare India and China" or "Top 5 populated countries").
+    -   *Voice Input*: Converted to text via Web Speech API (STT).
+2.  **Backend Processing (LangGraph)**:
+    -   **Intent Identification**: Classifies the request into *Data Retrieval*, *Comparison*, *Ranking*, or *Summary*.
+    -   **Tool Invocation**: Fetches real-time data from the **REST Countries API**.
+    -   **Answer Synthesis**: Generates a natural language response, often formatted with Markdown (tables, lists).
+3.  **Final Output**:
+    -   *Text*: Displayed in the chat interface (rendering Markdown).
+    -   *Audio*: Read aloud via Web Speech API (TTS).
 
 ---
 
 ## Detailed Step-by-Step Flow
 
-### Step 1: User Question
-**Input**: "What is the population of China and the US?"
+### Step 1: User Interaction (Frontend)
+-   **Action**: User clicks the microphone and asks: "Compare the population of France and Germany."
+-   **STT**: Browser converts audio to text: "Compare the population of France and Germany."
+-   **API Call**: Frontend sends `POST /chat` with `{"question": "..."}` to Backend.
 
 ### Step 2: Intent Identification (Node: `identify_intent`)
 -   **Model**: GPT-3.5-Turbo (Structured Output)
--   **Action**: Extracts structured data from the natural language query.
+-   **Action**: Extracts structured data and determines the type of request.
 -   **Output State**:
     ```json
     {
-      "country_names": ["China", "United States"],
-      "requested_fields": ["population"]
+      "country_names": ["France", "Germany"],
+      "requested_fields": ["population"],
+      "is_comparison": true,
+      "is_ranking": false,
+      "is_summary": false
     }
     ```
 
 ### Step 3: Tool Invocation (Node: `invoke_tool`)
 -   **Tool**: `CountryDataTool`
 -   **Action**:
-    1.  Fetches data for "China" -> API returns multiple results (China, Hong Kong, Macau, Taiwan).
-    2.  **Filtering**: The tool checks for an exact match on name, official name, or country code. It correctly identifies "China" (People's Republic of China).
-    3.  Fetches data for "United States" -> API returns "United States".
+    -   Since `is_comparison` is true, it iterates through `country_names`.
+    -   Fetches data for "France" -> API returns population: 67,391,582.
+    -   Fetches data for "Germany" -> API returns population: 83,240,525.
 -   **Output State**:
     ```json
     {
       "raw_data": {
-        "China": { "name": "China", "population": 1402112000, ... },
-        "United States": { "name": "United States", "population": 329484123, ... }
+        "France": { "population": 67391582, ... },
+        "Germany": { "population": 83240525, ... }
       }
     }
     ```
 
 ### Step 4: Answer Synthesis (Node: `synthesize_answer`)
 -   **Model**: GPT-3.5-Turbo
--   **Action**: Generates a human-readable response based on the raw data.
--   **Prompt**: "Question: What is the population of China and the US? Data: { ... } Requested Fields: ['population']"
+-   **Action**: Generates a response based on `raw_data` and intent flags.
+-   **Logic**: Detects `is_comparison=True` and formats the output as a Markdown table.
 -   **Output State**:
     ```json
     {
-      "answer": "The population of China is approximately 1.4 billion, and the population of the United States is about 329 million."
+      "answer": "| Country | Population |\n|---|---|\n| France | 67,391,582 |\n| Germany | 83,240,525 |"
     }
     ```
 
-### Step 5: Final Response
-The user sees: "The population of China is approximately 1.4 billion, and the population of the United States is about 329 million."
+### Step 5: Final Response (Frontend)
+-   **Display**: React renders the Markdown table.
+-   **TTS**: The browser reads out a summary: "Here is the comparison between France and Germany..."
 
 ---
 
-## Examples
+## Examples by Intent Type
 
-### Example 1: Single Country (Currency)
-**User**: "china currency?"
-1.  **Intent**: `country_names=["China"]`, `requested_fields=["currency"]`
-2.  **Tool**: Fetches "China" data. Finds `currencies: {"CNY": {"name": "Chinese yuan", "symbol": "¥"}}`.
-3.  **Synthesis**: "The currency of China is the Chinese yuan (CNY)."
-
-### Example 2: Multiple Countries (Capital)
-**User**: "capital of France and Germany"
-1.  **Intent**: `country_names=["France", "Germany"]`, `requested_fields=["capital"]`
+### Example 1: Ranking (Top N Countries)
+**User**: "Top 5 most populated countries."
+1.  **Intent**: `is_ranking=True`, `limit=5`, `sort_by="population"`.
 2.  **Tool**:
-    -   Fetches "France" -> `capital: ["Paris"]`
-    -   Fetches "Germany" -> `capital: ["Berlin"]`
-3.  **Synthesis**: "The capital of France is Paris, and the capital of Germany is Berlin."
+    -   Calls `fetch_ranking(sort_by="population", limit=5)`.
+    -   Fetches *all* countries, sorts them, and returns the top 5.
+3.  **Synthesis**: Generates a numbered list:
+    1.  China (1.4B)
+    2.  India (1.3B)
+    3.  USA (331M)
+    ...
 
-### Example 3: Error Handling (Country Not Found)
-**User**: "population of Atlantis"
-1.  **Intent**: `country_names=["Atlantis"]`, `requested_fields=["population"]`
-2.  **Tool**: API returns 404 Not Found.
-    -   `raw_data`: `{"Atlantis": {"error": "Country not found."}}`
-3.  **Synthesis**: "I could not find data for Atlantis. It appears to be a fictional or unrecognized country."
+### Example 2: Country Summary
+**User**: "Tell me about Japan."
+1.  **Intent**: `country_names=["Japan"]`, `is_summary=True`.
+2.  **Tool**: Fetches full data for Japan (Capital, Region, Currency, Languages, Flag).
+3.  **Synthesis**: Generates a bullet-point summary:
+    -   **Capital**: Tokyo
+    -   **Region**: Asia
+    -   **Currency**: Japanese Yen (JPY)
+    -   **Language**: Japanese
+
+### Example 3: Specific Data Retrieval
+**User**: "What is the capital of Brazil?"
+1.  **Intent**: `country_names=["Brazil"]`, `requested_fields=["capital"]`.
+2.  **Tool**: Fetches "Brazil" -> `capital: ["Brasília"]`.
+3.  **Synthesis**: "The capital of Brazil is Brasília."
+
+### Example 4: Error Handling
+**User**: "Population of Wakanda."
+1.  **Intent**: `country_names=["Wakanda"]`.
+2.  **Tool**: API returns 404 (Not Found).
+3.  **Synthesis**: "I could not find any data for 'Wakanda'. It may be a fictional country."
