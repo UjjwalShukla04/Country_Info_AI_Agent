@@ -1,0 +1,89 @@
+# Country Information AI Agent - Workflow
+
+This document explains the flow of the AI agent, from user input to final response, along with examples.
+
+## High-Level Workflow
+
+The agent uses **LangGraph** to orchestrate a stateful workflow consisting of three main nodes:
+
+1.  **User Input**: The process starts when the user asks a question about one or more countries.
+2.  **Intent Identification (LLM)**: An LLM analyzes the question to extract:
+    -   `country_names`: A list of countries mentioned (e.g., `["China", "USA"]`).
+    -   `requested_fields`: Specific information requested (e.g., `["population", "currency"]`).
+3.  **Tool Invocation (REST API)**: The agent iterates through the identified country names and calls the **REST Countries API** (`https://restcountries.com/v3.1/name/{name}`) for each one.
+    -   It uses **exact match logic** to ensure accurate results (e.g., distinguishing "China" from "Hong Kong").
+4.  **Answer Synthesis (LLM)**: The LLM receives the user's original question, the raw data fetched from the API, and the requested fields. It generates a natural language response.
+5.  **Final Output**: The synthesized answer is displayed to the user.
+
+---
+
+## Detailed Step-by-Step Flow
+
+### Step 1: User Question
+**Input**: "What is the population of China and the US?"
+
+### Step 2: Intent Identification (Node: `identify_intent`)
+-   **Model**: GPT-3.5-Turbo (Structured Output)
+-   **Action**: Extracts structured data from the natural language query.
+-   **Output State**:
+    ```json
+    {
+      "country_names": ["China", "United States"],
+      "requested_fields": ["population"]
+    }
+    ```
+
+### Step 3: Tool Invocation (Node: `invoke_tool`)
+-   **Tool**: `CountryDataTool`
+-   **Action**:
+    1.  Fetches data for "China" -> API returns multiple results (China, Hong Kong, Macau, Taiwan).
+    2.  **Filtering**: The tool checks for an exact match on name, official name, or country code. It correctly identifies "China" (People's Republic of China).
+    3.  Fetches data for "United States" -> API returns "United States".
+-   **Output State**:
+    ```json
+    {
+      "raw_data": {
+        "China": { "name": "China", "population": 1402112000, ... },
+        "United States": { "name": "United States", "population": 329484123, ... }
+      }
+    }
+    ```
+
+### Step 4: Answer Synthesis (Node: `synthesize_answer`)
+-   **Model**: GPT-3.5-Turbo
+-   **Action**: Generates a human-readable response based on the raw data.
+-   **Prompt**: "Question: What is the population of China and the US? Data: { ... } Requested Fields: ['population']"
+-   **Output State**:
+    ```json
+    {
+      "answer": "The population of China is approximately 1.4 billion, and the population of the United States is about 329 million."
+    }
+    ```
+
+### Step 5: Final Response
+The user sees: "The population of China is approximately 1.4 billion, and the population of the United States is about 329 million."
+
+---
+
+## Examples
+
+### Example 1: Single Country (Currency)
+**User**: "china currency?"
+1.  **Intent**: `country_names=["China"]`, `requested_fields=["currency"]`
+2.  **Tool**: Fetches "China" data. Finds `currencies: {"CNY": {"name": "Chinese yuan", "symbol": "¥"}}`.
+3.  **Synthesis**: "The currency of China is the Chinese yuan (CNY)."
+
+### Example 2: Multiple Countries (Capital)
+**User**: "capital of France and Germany"
+1.  **Intent**: `country_names=["France", "Germany"]`, `requested_fields=["capital"]`
+2.  **Tool**:
+    -   Fetches "France" -> `capital: ["Paris"]`
+    -   Fetches "Germany" -> `capital: ["Berlin"]`
+3.  **Synthesis**: "The capital of France is Paris, and the capital of Germany is Berlin."
+
+### Example 3: Error Handling (Country Not Found)
+**User**: "population of Atlantis"
+1.  **Intent**: `country_names=["Atlantis"]`, `requested_fields=["population"]`
+2.  **Tool**: API returns 404 Not Found.
+    -   `raw_data`: `{"Atlantis": {"error": "Country not found."}}`
+3.  **Synthesis**: "I could not find data for Atlantis. It appears to be a fictional or unrecognized country."
