@@ -64,19 +64,40 @@ A full-stack AI agent that provides detailed information about countries using t
    ```
    The frontend runs on `http://localhost:5173`.
 
-## Deployment
+## Deployment (Manual on Render)
 
-### Backend
+Since Render Blueprints may require payment verification, you can deploy manually for free.
 
-- Deploy to platforms like Render, Railway, or Heroku.
-- Set `OPENAI_API_KEY` as an environment variable in your hosting dashboard.
-- Ensure the build command installs dependencies from `requirements.txt`.
-- Start command: `uvicorn api:app --host 0.0.0.0 --port $PORT`.
+### 1. Deploy Backend (Web Service)
 
-### Frontend
+1.  Go to [Render Dashboard](https://dashboard.render.com/).
+2.  Click **New +** -> **Web Service**.
+3.  Connect this repository.
+4.  **Settings**:
+    - **Name**: `country-agent-backend`
+    - **Runtime**: Python 3
+    - **Build Command**: `pip install -r requirements.txt`
+    - **Start Command**: `uvicorn api:app --host 0.0.0.0 --port $PORT`
+5.  **Environment Variables**:
+    - `OPENAI_API_KEY`: Your OpenAI API Key.
+6.  Click **Create Web Service**.
+7.  **Copy the Backend URL** once deployed (e.g., `https://country-agent-backend.onrender.com`).
 
-- Deploy to Vercel, Netlify, or Render Static Sites.
-- Update the API URL in `App.jsx` to point to your deployed backend URL instead of `localhost`.
+### 2. Deploy Frontend (Static Site)
+
+1.  Go to **Render Dashboard**.
+2.  Click **New +** -> **Static Site**.
+3.  Connect this repository.
+4.  **Settings**:
+    - **Name**: `country-agent-frontend`
+    - **Root Directory**: `frontend` (Important!)
+    - **Build Command**: `npm install && npm run build`
+    - **Publish Directory**: `dist`
+5.  **Environment Variables**:
+    - `VITE_API_URL`: Paste your Backend URL here (e.g., `https://country-agent-backend.onrender.com`).
+6.  Click **Create Static Site**.
+
+Your app will be live at the frontend URL!
 
 ## Project Structure
 
