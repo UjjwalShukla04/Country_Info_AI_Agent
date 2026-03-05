@@ -132,72 +132,77 @@ function App() {
   };
 
   return (
-    <div className="app-container">
-      <header className="chat-header">
-        <h1>Country Info AI Agent</h1>
-      </header>
+    <div className="page">
+      <div className="earth-bg" aria-hidden="true" />
+      <div className="app-container">
+        <header className="chat-header">
+          <h1>Country Info AI Agent</h1>
+        </header>
 
-      <div className="chat-messages">
-        {messages.map((msg, index) => (
-          <div key={index} className={`message-row ${msg.role}`}>
-            <div className={`message ${msg.role}`}>
-              <div className="message-content">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    img: ({ node, ...props }) => (
-                      <div className="image-container">
-                        <img {...props} style={{ maxWidth: "100%" }} />
-                      </div>
-                    ),
-                  }}
+        <div className="chat-messages">
+          {messages.map((msg, index) => (
+            <div key={index} className={`message-row ${msg.role}`}>
+              <div className={`message ${msg.role}`}>
+                <div className="message-content">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      img: (props) => (
+                        <div className="image-container">
+                          <img {...props} style={{ maxWidth: "100%" }} />
+                        </div>
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              </div>
+              {msg.role === "assistant" && (
+                <button
+                  className={`speak-button ${speakingMessageId === index ? "speaking" : ""}`}
+                  onClick={() => speakText(msg.content, index)}
+                  title="Read aloud"
                 >
-                  {msg.content}
-                </ReactMarkdown>
+                  {speakingMessageId === index ? "🔊" : "🔈"}
+                </button>
+              )}
+            </div>
+          ))}
+          {isLoading && (
+            <div className="message-row assistant">
+              <div className="message assistant">
+                <div className="message-content">Thinking...</div>
               </div>
             </div>
-            {msg.role === "assistant" && (
-              <button
-                className={`speak-button ${speakingMessageId === index ? "speaking" : ""}`}
-                onClick={() => speakText(msg.content, index)}
-                title="Read aloud"
-              >
-                {speakingMessageId === index ? "🔊" : "🔈"}
-              </button>
-            )}
-          </div>
-        ))}
-        {isLoading && (
-          <div className="message-row assistant">
-            <div className="message assistant">
-              <div className="message-content">Thinking...</div>
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
-      <form onSubmit={handleSubmit} className="chat-input-form">
-        <button
-          type="button"
-          className={`mic-button ${isListening ? "listening" : ""}`}
-          onClick={startListening}
-          disabled={isLoading}
-          title="Speak input"
-        >
-          {isListening ? "🛑" : "🎤"}
-        </button>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={isListening ? "Listening..." : "Ask about a country..."}
-          disabled={isLoading || isListening}
-        />
-        <button type="submit" disabled={isLoading || !input.trim()}>
-          Send
-        </button>
-      </form>
+        <form onSubmit={handleSubmit} className="chat-input-form">
+          <button
+            type="button"
+            className={`mic-button ${isListening ? "listening" : ""}`}
+            onClick={startListening}
+            disabled={isLoading}
+            title="Speak input"
+          >
+            {isListening ? "🛑" : "🎤"}
+          </button>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={
+              isListening ? "Listening..." : "Ask about a country..."
+            }
+            disabled={isLoading || isListening}
+          />
+          <button type="submit" disabled={isLoading || !input.trim()}>
+            Send
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
