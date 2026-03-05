@@ -10,7 +10,7 @@ services:
         sync: false  # You will need to enter this manually in the Render Dashboard
 
   # Frontend Service
-  - type: static
+  - type: web
     name: country-agent-frontend
     env: static
     buildCommand: cd frontend && npm install && npm run build
