@@ -104,7 +104,12 @@ function App() {
     setIsLoading(true);
 
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      let apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      // Render provides the host without protocol, so we add it if missing
+      if (!apiUrl.startsWith("http")) {
+        apiUrl = `https://${apiUrl}`;
+      }
+
       const response = await axios.post(`${apiUrl}/chat`, {
         question: input,
       });
